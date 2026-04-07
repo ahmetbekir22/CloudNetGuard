@@ -118,6 +118,51 @@ def _row_to_features(row: dict, category: str) -> list[float]:
     return [feat[name] for name in FEATURE_NAMES]
 
 
+def _parse_csv_robust(path: str) -> Iterator[dict]:
+    """
+    CIC CSV'lerindeki gömülü virgül sorununu çözen parser.
+    Domain_Age gibi alanlar "8256 days, 11:53:49" formatında virgül içeriyor.
+    Sütun sayısına göre başlık eşlemesi yapar.
+    """
+    with open(path, encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+
+    if not lines:
+        return
+
+    # Başlık satırını parse et
+    header = next(csv.reader([lines[0]]))
+    n_cols = len(header)
+
+    for line in lines[1:]:
+        # Standart parse dene
+        try:
+            row_vals = next(csv.reader([line.strip()]))
+        except Exception:
+            continue
+
+        if len(row_vals) == n_cols:
+            yield dict(zip(header, row_vals))
+            continue
+
+        # Sütun sayısı uyuşmuyorsa Domain_Age alanındaki virgülü birleştir
+        # Domain_Age index'ini bul (23. sütun civarı)
+        try:
+            da_idx = header.index("Domain_Age")
+        except ValueError:
+            continue
+
+        # Fazla sütunları Domain_Age etrafında birleştir
+        extra = len(row_vals) - n_cols
+        merged = (
+            row_vals[:da_idx] +
+            [", ".join(row_vals[da_idx: da_idx + extra + 1])] +
+            row_vals[da_idx + extra + 1:]
+        )
+        if len(merged) == n_cols:
+            yield dict(zip(header, merged))
+
+
 def iter_dataset(
     csv_dir: str,
     max_benign: int = 50_000,
@@ -142,14 +187,12 @@ def iter_dataset(
 
         label = LABEL_MAP[category]
         count = 0
-        with open(path, encoding="utf-8", errors="replace") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if count >= limit:
-                    break
-                features = _row_to_features(row, category)
-                yield features, label
-                count += 1
+        for row in _parse_csv_robust(path):
+            if count >= limit:
+                break
+            features = _row_to_features(row, category)
+            yield features, label
+            count += 1
         log.info("Yüklendi: %s → %d satır (%s)", fname, count, label)
 
 

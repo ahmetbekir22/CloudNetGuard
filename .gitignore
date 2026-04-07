@@ -30,3 +30,6 @@ data/
 
 # Loglar
 *.log
+
+# Claude geliştirme kılavuzu (git'e girmesin)
+CLAUDE.md
