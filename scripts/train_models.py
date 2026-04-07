@@ -28,6 +28,7 @@ def main() -> None:
     src.add_argument("--csv",      default="data/train.csv", help="Sentetik CSV yolu")
 
     parser.add_argument("--generate",    action="store_true", help="Sentetik dataset üret")
+    parser.add_argument("--mix",         action="store_true", help="CIC + sentetik karışık eğitim")
     parser.add_argument("--n-samples",   type=int, default=50_000)
     parser.add_argument("--model",       choices=["autoencoder", "lstm", "both"], default="autoencoder")
     parser.add_argument("--epochs-ae",   type=int, default=50)
@@ -42,7 +43,22 @@ def main() -> None:
     if args.cic_dir:
         log.info("CIC-Bell-DNS-2021 verisi yükleniyor: %s", args.cic_dir)
         from load_cic_dns import load_arrays
-        X, y = load_arrays(args.cic_dir, args.max_benign, args.max_anomaly)
+        X_cic, y_cic = load_arrays(args.cic_dir, args.max_benign, args.max_anomaly)
+
+        if args.mix:
+            # Sentetik veri üret ve CIC ile birleştir
+            syn_csv = args.csv
+            if args.generate or not os.path.exists(syn_csv):
+                log.info("Sentetik dataset üretiliyor: %s", syn_csv)
+                from generate_dataset import generate
+                generate(syn_csv, args.n_samples)
+            from trainer import load_csv
+            X_syn, y_syn = load_csv(syn_csv)
+            X = np.concatenate([X_cic, X_syn])
+            y = np.concatenate([y_cic, y_syn])
+            log.info("Karışık dataset: CIC=%d + Sentetik=%d = Toplam=%d", len(y_cic), len(y_syn), len(y))
+        else:
+            X, y = X_cic, y_cic
     else:
         if args.generate or not os.path.exists(args.csv):
             log.info("Sentetik dataset üretiliyor: %s", args.csv)

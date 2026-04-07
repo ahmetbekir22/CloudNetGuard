@@ -150,7 +150,7 @@ def predict(
             with torch.no_grad():
                 lstm_prob = float(lstm_model(seq).item())
             if MODEL_TYPE == "ensemble":
-                final_score = 0.6 * ae_score + 0.4 * lstm_prob
+                final_score = 0.2 * ae_score + 0.8 * lstm_prob
             else:
                 final_score = lstm_prob
             _lstm_buffer.pop(0)

@@ -118,11 +118,58 @@ def _row_to_features(row: dict, category: str) -> list[float]:
     return [feat[name] for name in FEATURE_NAMES]
 
 
+def _bracket_split(line: str) -> list[str]:
+    """
+    Parantez/köşeli parantez içindeki virgülleri yok sayan CSV splitter.
+    ['a', 'b'], defaultdict(...), [('x', 1), ('y', 2)] gibi alanları tek parça tutar.
+    """
+    import re
+    fields: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for ch in line.rstrip("\n"):
+        if ch in "([{":
+            depth += 1
+            current.append(ch)
+        elif ch in ")]}":
+            depth -= 1
+            current.append(ch)
+        elif ch == "," and depth == 0:
+            fields.append("".join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    fields.append("".join(current).strip())
+    return fields
+
+
+def _merge_extra_fields(fields: list[str], expected: int) -> list[str]:
+    """
+    Bracket-split sonrası hâlâ fazla alan varsa (Domain_Age, Registrar gibi
+    bracket dışı virgüller) pattern tabanlı birleştirme yapar.
+    """
+    import re
+    result = list(fields)
+    i = 0
+    while len(result) > expected and i < len(result) - 1:
+        # "8256 days" → bir sonraki "11:53:49..." ile birleştir
+        if re.match(r"^\d+ days$", result[i]):
+            result[i] = result[i] + ", " + result.pop(i + 1)
+            continue
+        # "MarkMonitor" → sonrası "Inc." / "LLC" / "Ltd" ise birleştir
+        if i > 0 and re.match(r"^(Inc|LLC|Ltd|Co|Corp|GmbH|B\.V)\.?$", result[i], re.I):
+            result[i - 1] = result[i - 1] + ", " + result.pop(i)
+            i = max(0, i - 1)
+            continue
+        i += 1
+    return result
+
+
 def _parse_csv_robust(path: str) -> Iterator[dict]:
     """
-    CIC CSV'lerindeki gömülü virgül sorununu çözen parser.
-    Domain_Age gibi alanlar "8256 days, 11:53:49" formatında virgül içeriyor.
-    Sütun sayısına göre başlık eşlemesi yapar.
+    CIC CSV'lerindeki çoklu gömülü virgül sorununu çözen parser.
+    1) Bracket-aware split: list/dict literal içindeki virgülleri atlar.
+    2) Kalan fazla alanları pattern ile birleştirir (Domain_Age, Registrar).
     """
     with open(path, encoding="utf-8", errors="replace") as f:
         lines = f.readlines()
@@ -130,37 +177,34 @@ def _parse_csv_robust(path: str) -> Iterator[dict]:
     if not lines:
         return
 
-    # Başlık satırını parse et
     header = next(csv.reader([lines[0]]))
-    n_cols = len(header)
+    # Duplike sütun adlarını (ör. iki "Country") tekil yap
+    seen: dict[str, int] = {}
+    clean_header: list[str] = []
+    for col in header:
+        if col in seen:
+            seen[col] += 1
+            clean_header.append(f"{col}_{seen[col]}")
+        else:
+            seen[col] = 0
+            clean_header.append(col)
+    n_cols = len(clean_header)
 
     for line in lines[1:]:
-        # Standart parse dene
-        try:
-            row_vals = next(csv.reader([line.strip()]))
-        except Exception:
+        line = line.strip()
+        if not line:
             continue
 
-        if len(row_vals) == n_cols:
-            yield dict(zip(header, row_vals))
+        fields = _bracket_split(line)
+
+        if len(fields) != n_cols:
+            fields = _merge_extra_fields(fields, n_cols)
+
+        # Hâlâ eşleşmiyorsa satırı atla
+        if len(fields) != n_cols:
             continue
 
-        # Sütun sayısı uyuşmuyorsa Domain_Age alanındaki virgülü birleştir
-        # Domain_Age index'ini bul (23. sütun civarı)
-        try:
-            da_idx = header.index("Domain_Age")
-        except ValueError:
-            continue
-
-        # Fazla sütunları Domain_Age etrafında birleştir
-        extra = len(row_vals) - n_cols
-        merged = (
-            row_vals[:da_idx] +
-            [", ".join(row_vals[da_idx: da_idx + extra + 1])] +
-            row_vals[da_idx + extra + 1:]
-        )
-        if len(merged) == n_cols:
-            yield dict(zip(header, merged))
+        yield dict(zip(clean_header, fields))
 
 
 def iter_dataset(
