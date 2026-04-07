@@ -12,4 +12,4 @@ COPY dashboard/layouts/ ./layouts/
 COPY dashboard/assets/ ./assets/
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8050
-CMD ["python", "app.py"]
+CMD ["gunicorn", "app:server", "--bind", "0.0.0.0:8050", "--workers", "1", "--threads", "4", "--timeout", "120"]

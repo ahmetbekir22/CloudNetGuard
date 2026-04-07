@@ -37,7 +37,7 @@ services:
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - MODEL_TYPE=autoencoder
+      - MODEL_TYPE=ensemble
       - ANOMALY_THRESHOLD=0.85
       - BATCH_SIZE=32
     volumes:
