@@ -132,6 +132,3 @@ curl http://localhost:5002/policy
 
 ---
 
-## License
-
-MIT
