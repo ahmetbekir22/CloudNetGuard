@@ -203,18 +203,28 @@ class SyntheticGenerator:
                 yield self._normal_packet()
             time.sleep(interval)
 
-    def generate_batch(self, n: int) -> list[RawDNSPacket]:
-        """n adet paket üretir (rate sleep olmadan — eğitim verisi için)."""
+    def generate_batch(self, n: int, rate: float = 100.0) -> list[RawDNSPacket]:
+        """
+        n adet paket üretir.
+        rate: simüle edilen paket/sn — timestamp'ler buna göre ilerler,
+              böylece WindowTracker training/runtime'da aynı dağılımı görür.
+        """
         packets: list[RawDNSPacket] = []
         anomaly_generators = [
             self._tunnel_packet,
             self._ddos_packet,
             self._flux_packet,
         ]
+        interval = 1.0 / max(rate, 1)
+        fake_time = time.time()          # başlangıç zamanı
+
         for _ in range(n):
             if random.random() < self.anomaly_ratio:
                 func = random.choice(anomaly_generators)
-                packets.append(func())
+                pkt = func()
             else:
-                packets.append(self._normal_packet())
+                pkt = self._normal_packet()
+            pkt.timestamp = fake_time    # simüle edilmiş timestamp ata
+            fake_time += interval        # bir sonraki paket için ilerlet
+            packets.append(pkt)
         return packets
