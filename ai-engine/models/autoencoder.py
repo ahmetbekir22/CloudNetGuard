@@ -47,7 +47,7 @@ class Autoencoder(nn.Module):
         """Reconstruction error'u 0-1 arasına normalize et."""
         err = self.reconstruction_error(x)
         # Yumuşak sigmoid normalizasyonu
-        score = torch.sigmoid((err - threshold) * 10.0)
+        score = torch.sigmoid((err - threshold) * 30.0)
         return score
 
 

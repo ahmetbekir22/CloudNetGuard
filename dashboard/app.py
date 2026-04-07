@@ -215,11 +215,25 @@ def update_overview(_):
     ratio      = anomaly_q / total_q if total_q else 0.0
     action_cnt = len(_actions)
 
-    # Trafik zaman serisi (basit: son 60 kayıt)
-    recent = list(_anomalies)[:60][::-1]
-    ts     = [r["timestamp"] for r in recent]
-    normal = [0 if r["is_anomaly"] else 1 for r in recent]
-    anom   = [1 if r["is_anomaly"] else 0 for r in recent]
+    # Trafik zaman serisi — 1 saniyelik dilimler halinde say
+    import datetime as _dt
+    from collections import OrderedDict
+    bins: dict[str, list[int]] = OrderedDict()
+    for r in reversed(list(_anomalies)[:600]):
+        try:
+            sec = r["timestamp"][:19]   # "2026-04-07T10:41:43"
+            if sec not in bins:
+                bins[sec] = [0, 0]
+            if r["is_anomaly"]:
+                bins[sec][1] += 1
+            else:
+                bins[sec][0] += 1
+        except Exception:
+            pass
+    last_bins = list(bins.items())[-40:]   # son 40 saniye
+    ts     = [b[0] for b in last_bins]
+    normal = [b[1][0] for b in last_bins]
+    anom   = [b[1][1] for b in last_bins]
 
     traffic_fig = overview_layout.build_traffic_figure(ts, normal, anom)
     gauge_fig   = overview_layout.build_gauge_figure(ratio)

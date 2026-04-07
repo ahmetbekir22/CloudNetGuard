@@ -16,27 +16,51 @@ from schema import FEATURE_NAMES, FeatureExplanation
 
 log = logging.getLogger(__name__)
 
-# Anomali tipini feature pattern'lerine göre tahmin et
-_TYPE_RULES: list[tuple[str, dict[str, float]]] = [
-    # (tip, {feature: minimum_normalize_değer})
-    ("tunnel", {"entropy": 0.7, "query_length": 0.6, "record_type_TXT": 0.5}),
-    ("ddos",   {"query_rate": 0.7}),
-    ("flux",   {"unique_domains": 0.6, "is_nxdomain": 0.5}),
+# Anomali tipini feature pattern'lerine göre tahmin et.
+# Her kural: (tip, {feature: (eşik, ağırlık)})
+# Eşiği aşan her feature ağırlığıyla skora katkı sağlar.
+# Sentetik DDoS: spoofed IP → query_rate düşük, ama response_size yüksek + ttl çok düşük
+# Sentetik tunnel: uzun subdomain, yüksek entropi, TXT ağırlıklı
+# Sentetik flux: DGA domain → yüksek is_nxdomain, düşük ttl, yüksek unique_domains
+_TYPE_RULES: list[tuple[str, dict[str, tuple[float, float]]]] = [
+    ("ddos", {
+        "response_size": (0.12, 4.0),   # 512-4096 byte → normalize ~0.12-1.0
+        "ttl":           (0.0, -3.0),   # çok düşük TTL (1-30s) → ters sinyal
+        "record_type_A": (0.70, 1.0),   # A tipi sorgu
+    }),
+    ("tunnel", {
+        "entropy":               (0.40, 3.0),
+        "query_length":          (0.30, 2.0),
+        "record_type_TXT":       (0.05, 2.5),
+        "subdomain_digit_ratio": (0.25, 1.5),
+    }),
+    ("flux", {
+        "unique_domains": (0.20, 2.5),
+        "is_nxdomain":    (0.10, 3.0),
+        "ttl":            (0.0, -1.5),  # düşük TTL
+    }),
 ]
 
 
 def _guess_type(feature_vector: list[float]) -> str:
     fdict = dict(zip(FEATURE_NAMES, feature_vector))
-    best, best_score = "tunnel", 0.0
+    scores: dict[str, float] = {}
+
     for atype, rules in _TYPE_RULES:
-        score = sum(
-            max(0.0, fdict.get(f, 0.0) - threshold)
-            for f, threshold in rules.items()
-        )
-        if score > best_score:
-            best_score = score
-            best = atype
-    return best if best_score > 0 else "tunnel"
+        total = 0.0
+        for feature, (threshold, weight) in rules.items():
+            val = fdict.get(feature, 0.0)
+            if weight > 0:
+                if val > threshold:
+                    total += (val - threshold) * weight
+            else:
+                # Ters sinyal: düşük değer skor kazandırır (örn. TTL flux için)
+                if val < (1.0 - threshold):
+                    total += (1.0 - threshold - val) * abs(weight)
+        scores[atype] = total
+
+    best = max(scores, key=lambda k: scores[k])
+    return best if scores[best] > 0.0 else "tunnel"
 
 
 class SHAPExplainer:
