@@ -111,13 +111,15 @@ _tracker = _WindowTracker(window_seconds=5.0)
 # Ana fonksiyon
 # ---------------------------------------------------------------------------
 
-def extract_features(packet: RawDNSPacket) -> list[float]:
+def extract_features(packet: RawDNSPacket, tracker: "_WindowTracker | None" = None) -> list[float]:
     """
     RawDNSPacket'ten 12 boyutlu normalize feature vektörü çıkar.
     Döndürülen liste FEATURE_NAMES sırasını takip eder.
+    tracker: özel tracker (batch/eğitim için); None ise global runtime tracker kullanılır.
     """
-    now = time.time()
-    _tracker.update(packet.src_ip, packet.query, now)
+    now = packet.timestamp  # packet'in kendi zaman damgasını kullan
+    t = tracker if tracker is not None else _tracker
+    t.update(packet.src_ip, packet.query, now)
 
     # ---- ham değerler ----
     parts = packet.query.split(".")
@@ -128,12 +130,12 @@ def extract_features(packet: RawDNSPacket) -> list[float]:
     entropy            = _shannon_entropy(subdomain_str) if subdomain_str else _shannon_entropy(packet.query)
     subdomain_count    = float(len(parts))
     ttl                = float(packet.ttl)
-    query_rate         = _tracker.query_rate(packet.src_ip)
+    query_rate         = t.query_rate(packet.src_ip)
     record_type_a      = 1.0 if packet.query_type == "A" else 0.0
     record_type_txt    = 1.0 if packet.query_type == "TXT" else 0.0
     record_type_mx     = 1.0 if packet.query_type == "MX" else 0.0
     response_size      = float(packet.response_size)
-    unique_domains     = float(_tracker.unique_domains())
+    unique_domains     = float(t.unique_domains())
     is_nxdomain        = 1.0 if packet.is_nxdomain else 0.0
 
     digit_ratio = 0.0

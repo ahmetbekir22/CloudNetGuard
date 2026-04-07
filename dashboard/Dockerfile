@@ -9,7 +9,7 @@ COPY --from=builder /install /usr/local
 COPY shared /app/shared
 COPY dashboard/app.py ./
 COPY dashboard/layouts/ ./layouts/
-COPY dashboard/static/ ./static/
+COPY dashboard/assets/ ./assets/
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8050
 CMD ["python", "app.py"]

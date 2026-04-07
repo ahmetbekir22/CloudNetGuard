@@ -8,39 +8,46 @@ from dash import dash_table, dcc, html
 _PLOT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#6b6b80", family="Inter, system-ui, sans-serif", size=11),
-    margin=dict(t=10, b=36, l=48, r=16),
-    xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10)),
-    yaxis=dict(gridcolor="#1e1e2a", zeroline=False, tickfont=dict(size=10)),
+    font=dict(color="#888888", family="Inter, -apple-system, sans-serif", size=11),
+    margin=dict(t=4, b=32, l=44, r=12),
+    xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10, color="#aaaaaa"),
+               linecolor="#e4e4e8"),
+    yaxis=dict(gridcolor="#f0f0f2", zeroline=False, tickfont=dict(size=10, color="#aaaaaa")),
+    hoverlabel=dict(bgcolor="#ffffff", bordercolor="#e4e4e8",
+                    font=dict(color="#111111", size=12, family="Inter")),
 )
 
-_TABLE_STYLE = dict(
-    style_table={"overflowX": "auto", "borderRadius": "8px", "overflow": "hidden"},
+_TABLE = dict(
+    style_table={"overflowX": "auto"},
     style_header={
-        "backgroundColor": "#111118",
-        "color": "#6b6b80",
+        "backgroundColor": "#f7f7f8",
+        "color": "#888888",
         "fontWeight": "500",
         "fontSize": "11px",
         "textTransform": "uppercase",
         "letterSpacing": "0.06em",
         "border": "none",
-        "borderBottom": "1px solid #1e1e2a",
+        "borderBottom": "1px solid #e4e4e8",
         "padding": "10px 14px",
+        "fontFamily": "Inter, sans-serif",
     },
     style_cell={
-        "backgroundColor": "#0a0a0f",
-        "color": "#e8e8f0",
+        "backgroundColor": "#ffffff",
+        "color": "#111111",
         "border": "none",
-        "borderBottom": "1px solid #1e1e2a",
-        "padding": "10px 14px",
+        "borderBottom": "1px solid #f0f0f2",
+        "padding": "9px 14px",
         "fontSize": "12px",
-        "fontFamily": "Inter, system-ui, sans-serif",
+        "fontFamily": "Inter, sans-serif",
     },
     style_data_conditional=[
-        {"if": {"row_index": "odd"}, "backgroundColor": "#0d0d14"},
-        {"if": {"filter_query": '{predicted_type} = "ddos"'},   "color": "#ef4444"},
-        {"if": {"filter_query": '{predicted_type} = "tunnel"'}, "color": "#6366f1"},
-        {"if": {"filter_query": '{predicted_type} = "flux"'},   "color": "#f59e0b"},
+        {"if": {"row_index": "odd"}, "backgroundColor": "#fafafa"},
+        {"if": {"filter_query": '{predicted_type} = "ddos"'},
+         "color": "#e53935"},
+        {"if": {"filter_query": '{predicted_type} = "tunnel"'},
+         "color": "#4f46e5"},
+        {"if": {"filter_query": '{predicted_type} = "flux"'},
+         "color": "#d97706"},
     ],
 )
 
@@ -55,28 +62,28 @@ def layout() -> html.Div:
                 dcc.Dropdown(
                     id="filter-type",
                     options=[
-                        {"label": "Tümü",    "value": "all"},
-                        {"label": "Tünel",   "value": "tunnel"},
-                        {"label": "DDoS",    "value": "ddos"},
-                        {"label": "Flux",    "value": "flux"},
+                        {"label": "Tümü",   "value": "all"},
+                        {"label": "Tünel",  "value": "tunnel"},
+                        {"label": "DDoS",   "value": "ddos"},
+                        {"label": "Flux",   "value": "flux"},
                     ],
                     value="all",
                     clearable=False,
-                    style={"width": "180px"},
+                    style={"width": "160px"},
                 ),
             ]),
             html.Div([
-                html.Label("Min Skor"),
+                html.Label("Min Anomali Skoru"),
                 dcc.Slider(id="filter-score", min=0, max=1, step=0.05, value=0.5,
                            marks={0: "0", 0.5: "0.5", 1: "1"},
                            tooltip={"placement": "bottom", "always_visible": False}),
-            ], style={"flex": "1", "minWidth": "200px", "maxWidth": "360px"}),
+            ], style={"flex": "1", "minWidth": "200px", "maxWidth": "340px"}),
         ], className="filters-row"),
 
         html.Div([
-            html.H3("Anomali Zaman Serisi"),
+            html.H3("Zaman Serisi"),
             dcc.Graph(id="anomaly-scatter", config={"displayModeBar": False},
-                      style={"height": "260px"}),
+                      style={"height": "240px"}),
         ], className="chart-card"),
 
         html.Div([
@@ -94,7 +101,7 @@ def layout() -> html.Div:
                 page_size=15,
                 sort_action="native",
                 filter_action="native",
-                **_TABLE_STYLE,
+                **_TABLE,
             ),
         ], className="chart-card"),
 
@@ -103,9 +110,9 @@ def layout() -> html.Div:
 
 
 def build_scatter_figure(records: list[dict]) -> go.Figure:
-    colors = {"tunnel": "#6366f1", "ddos": "#ef4444", "flux": "#f59e0b"}
+    palette = {"tunnel": "#4f46e5", "ddos": "#e53935", "flux": "#d97706"}
     fig = go.Figure()
-    for atype, color in colors.items():
+    for atype, color in palette.items():
         subset = [r for r in records if r.get("predicted_type") == atype]
         if not subset:
             continue
@@ -114,16 +121,15 @@ def build_scatter_figure(records: list[dict]) -> go.Figure:
             y=[r["anomaly_score"] for r in subset],
             mode="markers",
             name=atype.upper(),
-            marker=dict(color=color, size=7, opacity=0.75,
-                        line=dict(width=0)),
+            marker=dict(color=color, size=6, opacity=0.7, line=dict(width=0)),
             customdata=[[r["src_ip"], r["query"]] for r in subset],
             hovertemplate="<b>%{customdata[0]}</b><br>%{customdata[1]}<br>Skor: %{y:.3f}<extra></extra>",
         ))
     fig.update_layout(
         **_PLOT,
         yaxis_range=[0, 1],
-        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=10), orientation="h",
-                    x=1, xanchor="right", y=1.1),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11), orientation="h",
+                    x=1, xanchor="right", y=1.12),
         hovermode="closest",
     )
     return fig

@@ -8,35 +8,34 @@ from dash import dcc, html
 _PLOT = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(color="#6b6b80", family="Inter, system-ui, sans-serif", size=11),
-    margin=dict(t=10, b=36, l=160, r=32),
-    xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10)),
-    yaxis=dict(gridcolor="#1e1e2a", zeroline=False, tickfont=dict(size=10)),
+    font=dict(color="#888888", family="Inter, -apple-system, sans-serif", size=11),
+    hoverlabel=dict(bgcolor="#ffffff", bordercolor="#e4e4e8",
+                    font=dict(color="#111111", size=12, family="Inter")),
 )
 
 
 def layout() -> html.Div:
     return html.Div([
         html.H2("XAI Açıklamaları", className="page-title"),
-        html.P("Bir anomali seçin — modelin neden bu kararı verdiğini görün.",
-               style={"color": "#6b6b80", "marginBottom": "20px", "fontSize": "13px"}),
+        html.P("Bir anomali seçin — modelin kararını açıklayan feature analizi.",
+               style={"color": "#888888", "marginBottom": "18px", "fontSize": "13px"}),
 
         dcc.Dropdown(
             id="xai-anomaly-selector",
-            placeholder="Anomali seçin...",
-            style={"maxWidth": "620px", "marginBottom": "20px"},
+            placeholder="Anomali seçin…",
+            style={"maxWidth": "580px", "marginBottom": "18px"},
         ),
 
         html.Div([
             html.Div([
                 html.H3("Feature Önem Skorları"),
                 dcc.Graph(id="xai-bar-chart", config={"displayModeBar": False},
-                          style={"height": "260px"}),
+                          style={"height": "250px"}),
             ], className="chart-card"),
             html.Div([
                 html.H3("Kümülatif Etki"),
                 dcc.Graph(id="xai-waterfall", config={"displayModeBar": False},
-                          style={"height": "260px"}),
+                          style={"height": "250px"}),
             ], className="chart-card"),
         ], className="charts-row"),
 
@@ -49,7 +48,7 @@ def layout() -> html.Div:
         html.Div([
             html.H3("Feature Değerleri / Normal Aralık"),
             dcc.Graph(id="xai-feature-comparison", config={"displayModeBar": False},
-                      style={"height": "260px"}),
+                      style={"height": "250px"}),
         ], className="chart-card"),
 
         dcc.Interval(id="interval-xai", interval=5000, n_intervals=0),
@@ -61,7 +60,7 @@ def build_bar_figure(top_features: list[dict]) -> go.Figure:
         return _empty()
     names  = [f["feature"] for f in top_features]
     values = [f["importance"] for f in top_features]
-    colors = ["#ef4444" if f["direction"] in ("high", "present") else "#22c55e"
+    colors = ["#e53935" if f["direction"] in ("high", "present") else "#22c55e"
               for f in top_features]
     fig = go.Figure(go.Bar(
         x=values[::-1], y=names[::-1],
@@ -69,9 +68,17 @@ def build_bar_figure(top_features: list[dict]) -> go.Figure:
         marker=dict(color=colors[::-1], line=dict(width=0)),
         text=[f"{v:.3f}" for v in values[::-1]],
         textposition="outside",
-        textfont=dict(size=10, color="#6b6b80"),
+        textfont=dict(size=10, color="#888888"),
+        hovertemplate="%{y}: %{x:.4f}<extra></extra>",
     ))
-    fig.update_layout(**_PLOT, xaxis_title="Önem")
+    fig.update_layout(
+        **_PLOT,
+        margin=dict(t=4, b=28, l=150, r=56),
+        xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10, color="#aaaaaa")),
+        yaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=11, color="#444444")),
+        xaxis_title="Önem",
+        height=250,
+    )
     return fig
 
 
@@ -80,18 +87,23 @@ def build_waterfall_figure(top_features: list[dict]) -> go.Figure:
         return _empty()
     measures = ["relative"] * len(top_features) + ["total"]
     x_vals   = [f["feature"] for f in top_features] + ["Toplam"]
-    y_vals   = [f["importance"] * (1 if f["direction"] in ("high","present") else -1)
+    y_vals   = [f["importance"] * (1 if f["direction"] in ("high", "present") else -1)
                 for f in top_features] + [None]
     fig = go.Figure(go.Waterfall(
         orientation="v", measure=measures, x=x_vals, y=y_vals,
-        connector=dict(line=dict(color="#1e1e2a", width=1)),
-        increasing=dict(marker=dict(color="#ef4444")),
-        decreasing=dict(marker=dict(color="#22c55e")),
-        totals=dict(marker=dict(color="#6366f1")),
+        connector=dict(line=dict(color="#e4e4e8", width=1)),
+        increasing=dict(marker=dict(color="#e53935", line=dict(width=0))),
+        decreasing=dict(marker=dict(color="#22c55e", line=dict(width=0))),
+        totals=dict(marker=dict(color="#4f46e5", line=dict(width=0))),
+        hovertemplate="%{x}: %{y:.4f}<extra></extra>",
     ))
     fig.update_layout(
         **_PLOT,
-        margin=dict(t=10, b=60, l=32, r=16),
+        margin=dict(t=4, b=56, l=44, r=12),
+        xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10, color="#888888"),
+                   tickangle=-30),
+        yaxis=dict(gridcolor="#f0f0f2", zeroline=False, tickfont=dict(size=10, color="#aaaaaa")),
+        height=250,
     )
     return fig
 
@@ -123,21 +135,34 @@ def build_comparison_figure(
     hi      = [normal_ranges.get(n, (0, 0.5))[1] for n in names]
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(name="Aktüel", x=names, y=actuals,
-                         marker=dict(color="#6366f1", line=dict(width=0)),
-                         opacity=0.85))
-    fig.add_trace(go.Scatter(name="Normal min", x=names, y=lo, mode="markers",
-                             marker=dict(symbol="line-ew-open", size=14,
-                                         color="#22c55e", line=dict(width=2))))
-    fig.add_trace(go.Scatter(name="Normal max", x=names, y=hi, mode="markers",
-                             marker=dict(symbol="line-ew-open", size=14,
-                                         color="#f59e0b", line=dict(width=2))))
+    fig.add_trace(go.Bar(
+        name="Aktüel", x=names, y=actuals,
+        marker=dict(color="#4f46e5", opacity=0.8, line=dict(width=0)),
+        hovertemplate="%{x}: %{y:.3f}<extra>Aktüel</extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        name="Normal alt", x=names, y=lo, mode="markers",
+        marker=dict(symbol="line-ew-open", size=12,
+                    color="#22c55e", line=dict(width=2)),
+        hovertemplate="%{x}: %{y:.3f}<extra>Normal alt</extra>",
+    ))
+    fig.add_trace(go.Scatter(
+        name="Normal üst", x=names, y=hi, mode="markers",
+        marker=dict(symbol="line-ew-open", size=12,
+                    color="#d97706", line=dict(width=2)),
+        hovertemplate="%{x}: %{y:.3f}<extra>Normal üst</extra>",
+    ))
     fig.update_layout(
         **_PLOT,
-        margin=dict(t=10, b=60, l=48, r=16),
-        yaxis_range=[0, 1],
-        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=10)),
+        margin=dict(t=4, b=56, l=44, r=12),
+        xaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=10, color="#888888"),
+                   tickangle=-25),
+        yaxis=dict(gridcolor="#f0f0f2", zeroline=False, tickfont=dict(size=10, color="#aaaaaa"),
+                   range=[0, 1]),
+        legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11),
+                    orientation="h", x=1, xanchor="right", y=1.12),
         barmode="overlay",
+        height=250,
     )
     return fig
 
@@ -145,5 +170,5 @@ def build_comparison_figure(
 def _empty() -> go.Figure:
     fig = go.Figure()
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      font=dict(color="#6b6b80"))
+                      font=dict(color="#888888"))
     return fig

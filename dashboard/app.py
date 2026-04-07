@@ -180,7 +180,7 @@ app.layout = html.Div([
 
     dcc.Location(id="url", refresh=False),
     html.Div(id="page-content"),
-], style={"minHeight": "100vh", "backgroundColor": "#1e1e2e"})
+], style={"minHeight": "100vh", "width": "100%", "backgroundColor": "#ffffff"})
 
 
 # ---- Sayfa yönlendirme ----
