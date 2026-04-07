@@ -126,6 +126,7 @@ def fetch_new_data() -> None:
                                 for f in rec.top_features
                             ],
                             "summary":        rec.summary,
+                            "feature_vector": rec.feature_vector,
                         })
                     except Exception as exc:
                         log.warning("Anomali parse hatası: %s", exc)
@@ -355,50 +356,104 @@ def update_xai_detail(selected_idx):
         return no_update, no_update, no_update, no_update
 
     a = anomaly_list[idx]
-    top_features = a.get("top_features") or []
 
-    # top_features boşsa feature vektöründen basit importance türet
-    if not top_features:
-        top_features = _derive_importance(a)
+    # Semantik olarak doğru feature sırası + gerçek değerler
+    top_features = _derive_importance(a)
+    summary      = a.get("summary") or _auto_summary(a)
 
     bar_fig   = xai_layout.build_bar_figure(top_features)
     wfall_fig = xai_layout.build_waterfall_figure(top_features)
     comp_fig  = xai_layout.build_comparison_figure(top_features)
-    summary   = a.get("summary") or _auto_summary(a)
 
     return bar_fig, wfall_fig, summary, comp_fig
 
 
 def _derive_importance(a: dict) -> list[dict]:
-    """top_features yokken anomali tipine göre önemli feature'ları türet."""
+    """
+    Anomali tipine göre semantik feature önceliklendirmesi.
+    Feature'ın normal aralığından sapması kadar önemlidir.
+    Sıfır değer sorunu: deviation-based importance + minimum floor.
+    """
     from schema import FEATURE_NAMES
     ptype = a.get("predicted_type", "tunnel")
+    fvec  = a.get("feature_vector", [])
+    fdict = dict(zip(FEATURE_NAMES, fvec)) if fvec else {}
 
-    # Her tip için en anlamlı feature sıralaması
-    priority = {
-        "tunnel": ["entropy", "query_length", "record_type_TXT", "subdomain_digit_ratio",
-                   "subdomain_count"],
-        "ddos":   ["response_size", "ttl", "record_type_A", "query_rate", "subdomain_count"],
-        "flux":   ["is_nxdomain", "unique_domains", "ttl", "entropy", "query_length"],
-    }.get(ptype, ["entropy", "query_length", "query_rate"])
-
-    direction_map = {
-        "entropy": "high", "query_length": "high", "record_type_TXT": "present",
-        "subdomain_digit_ratio": "high", "subdomain_count": "high",
-        "response_size": "high", "ttl": "low", "record_type_A": "present",
-        "query_rate": "high", "is_nxdomain": "present", "unique_domains": "high",
+    # Normal aralık ortalamaları (build_comparison_figure ile tutarlı)
+    _normal_mid = {
+        "query_length":          0.175,
+        "entropy":               0.300,
+        "subdomain_count":       0.150,
+        "ttl":                   0.550,
+        "query_rate":            0.050,
+        "record_type_A":         0.750,
+        "record_type_TXT":       0.050,
+        "record_type_MX":        0.050,
+        "response_size":         0.125,
+        "unique_domains":        0.175,
+        "is_nxdomain":           0.025,
+        "subdomain_digit_ratio": 0.075,
     }
 
-    total = len(priority)
-    return [
-        {
+    # (feature, base_weight, direction, low_is_bad)
+    rules = {
+        "tunnel": [
+            ("entropy",               3.0, "high",    False),
+            ("query_length",          2.5, "high",    False),
+            ("record_type_TXT",       2.0, "present", False),
+            ("subdomain_digit_ratio", 1.5, "high",    False),
+            ("subdomain_count",       1.0, "high",    False),
+        ],
+        "ddos": [
+            ("response_size",   3.0, "high",    False),
+            ("ttl",             2.5, "low",     True),
+            ("query_rate",      2.0, "high",    False),
+            ("record_type_A",   1.5, "present", False),
+            ("subdomain_count", 1.0, "high",    False),
+        ],
+        "flux": [
+            ("is_nxdomain",   3.0, "present", False),
+            ("unique_domains",2.5, "high",    False),
+            ("ttl",           2.0, "low",     True),
+            ("entropy",       1.5, "high",    False),
+            ("query_length",  1.0, "high",    False),
+        ],
+    }.get(ptype, [
+        ("entropy",      2.0, "high", False),
+        ("query_length", 1.5, "high", False),
+        ("query_rate",   1.0, "high", False),
+    ])
+
+    results = []
+    for feat, weight, direction, low_is_bad in rules:
+        val = fdict.get(feat, 0.0)
+        mid = _normal_mid.get(feat, 0.3)
+
+        # Deviation from normal midpoint — yüksek sapma = yüksek önem
+        if low_is_bad:
+            # Düşük değer anomalik: normal_mid'den ne kadar düşük?
+            deviation = max(0.0, mid - val)
+        else:
+            # Yüksek değer anomalik: normal_mid'den ne kadar yüksek?
+            deviation = max(0.0, val - mid)
+
+        # Minimum floor: her feature en az %10 * weight kadar önem taşır
+        importance = weight * max(deviation, 0.1)
+
+        results.append({
             "feature":    feat,
-            "importance": round((total - i) / sum(range(1, total + 1)), 3),
-            "value":      0.5,   # gerçek değer bilinmiyor
-            "direction":  direction_map.get(feat, "high"),
-        }
-        for i, feat in enumerate(priority)
-    ]
+            "importance": importance,
+            "value":      round(val, 4),
+            "direction":  direction,
+        })
+
+    # Normalize et — toplamı 1'e getir
+    total = sum(r["importance"] for r in results) or 1.0
+    for r in results:
+        r["importance"] = round(r["importance"] / total, 4)
+
+    # Öneme göre sırala (yüksekten düşüğe)
+    return sorted(results, key=lambda x: x["importance"], reverse=True)
 
 
 def _auto_summary(a: dict) -> str:

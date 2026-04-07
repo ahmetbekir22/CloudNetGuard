@@ -219,6 +219,7 @@ def process_messages(
                         reconstruction_error=round(recon_err, 6),
                         top_features=top_features,
                         summary=summary,
+                        feature_vector=[round(f, 4) for f in features],
                     )
                     r.xadd(OUT_STREAM, anomaly_rec.to_redis(), maxlen=20_000, approximate=True)
                     r.xack(IN_STREAM, CONSUMER_GROUP, msg_id)

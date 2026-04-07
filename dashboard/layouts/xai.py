@@ -85,15 +85,17 @@ def build_bar_figure(top_features: list[dict]) -> go.Figure:
 def build_waterfall_figure(top_features: list[dict]) -> go.Figure:
     if not top_features:
         return _empty()
+    # Tüm importance pozitif — anomali kararına katkıyı göster
     measures = ["relative"] * len(top_features) + ["total"]
     x_vals   = [f["feature"] for f in top_features] + ["Toplam"]
-    y_vals   = [f["importance"] * (1 if f["direction"] in ("high", "present") else -1)
-                for f in top_features] + [None]
+    y_vals   = [abs(f["importance"]) for f in top_features] + [None]
+    colors   = ["#e53935" if f["direction"] in ("high", "present") else "#4f46e5"
+                for f in top_features]
     fig = go.Figure(go.Waterfall(
         orientation="v", measure=measures, x=x_vals, y=y_vals,
         connector=dict(line=dict(color="#e4e4e8", width=1)),
         increasing=dict(marker=dict(color="#e53935", line=dict(width=0))),
-        decreasing=dict(marker=dict(color="#22c55e", line=dict(width=0))),
+        decreasing=dict(marker=dict(color="#4f46e5", line=dict(width=0))),
         totals=dict(marker=dict(color="#4f46e5", line=dict(width=0))),
         hovertemplate="%{x}: %{y:.4f}<extra></extra>",
     ))

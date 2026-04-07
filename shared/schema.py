@@ -69,6 +69,7 @@ class AnomalyRecord:
     reconstruction_error: float
     top_features: list[FeatureExplanation] = field(default_factory=list)
     summary: str = ""
+    feature_vector: list[float] = field(default_factory=list)  # ham 12-boyutlu vektör
 
     def to_redis(self) -> dict[str, str]:
         return {
@@ -81,12 +82,14 @@ class AnomalyRecord:
             "reconstruction_error": str(self.reconstruction_error),
             "top_features": json.dumps([asdict(f) for f in self.top_features]),
             "summary": self.summary,
+            "feature_vector": json.dumps(self.feature_vector),
         }
 
     @classmethod
     def from_redis(cls, data: dict) -> "AnomalyRecord":
         raw_features = json.loads(data.get("top_features", "[]"))
         top_features = [FeatureExplanation(**f) for f in raw_features]
+        feature_vector = json.loads(data.get("feature_vector", "[]"))
         return cls(
             timestamp=data["timestamp"],
             src_ip=data["src_ip"],
@@ -97,6 +100,7 @@ class AnomalyRecord:
             reconstruction_error=float(data["reconstruction_error"]),
             top_features=top_features,
             summary=data.get("summary", ""),
+            feature_vector=feature_vector,
         )
 
 
