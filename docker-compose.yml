@@ -1,0 +1,76 @@
+services:
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  dns-collector:
+    build:
+      context: .
+      dockerfile: dns-collector/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MODE=synthetic
+      - RATE=100
+      - ANOMALY_RATIO=0.15
+    volumes:
+      - ./dns-collector/data:/app/data
+    restart: unless-stopped
+
+  ai-engine:
+    build:
+      context: .
+      dockerfile: ai-engine/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MODEL_TYPE=autoencoder
+      - ANOMALY_THRESHOLD=0.85
+      - BATCH_SIZE=32
+    volumes:
+      - ./ai-engine/pretrained:/app/pretrained
+    restart: unless-stopped
+
+  sdn-sim:
+    build:
+      context: .
+      dockerfile: sdn-sim/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - POLICY=rules
+      - PORT=5001
+    ports:
+      - "5002:5001"
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PORT=8050
+    ports:
+      - "8050:8050"
+    restart: unless-stopped

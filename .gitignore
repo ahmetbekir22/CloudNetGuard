@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.env
+
+# Model ağırlıkları (büyük binary dosyalar)
+ai-engine/pretrained/*.pt
+ai-engine/pretrained/*.pth
+
+# Eğitim verisi
+data/
+*.csv
+*.pcap
+*.pcapng
+
+# Docker
+.docker/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Loglar
+*.log
