@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sdn-sim
+  namespace: cloudnetguard
+spec:
+  selector:
+    app: sdn-sim
+  type: NodePort
+  ports:
+    - port: 5001
+      targetPort: 5001
+      nodePort: 30002   # docker-compose'daki 5002 portuna karşılık gelir

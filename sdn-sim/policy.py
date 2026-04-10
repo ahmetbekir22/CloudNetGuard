@@ -14,7 +14,13 @@ from actions import Action, ActionResult, HONEYPOT_IP
 
 log = logging.getLogger(__name__)
 
-POLICY_MODE = os.environ.get("POLICY", "rules")   # rules | rl
+POLICY_MODE      = os.environ.get("POLICY", "rules")   # rules | rl
+
+# Operator tarafından ConfigMap üzerinden güncellenebilir eşik değerleri
+DDOS_THRESHOLD   = float(os.environ.get("DDOS_THRESHOLD",   "0.9"))
+TUNNEL_THRESHOLD = float(os.environ.get("TUNNEL_THRESHOLD", "0.85"))
+FLUX_THRESHOLD   = float(os.environ.get("FLUX_THRESHOLD",   "0.8"))
+MIRROR_THRESHOLD = float(os.environ.get("MIRROR_THRESHOLD", "0.6"))
 
 
 # ---------------------------------------------------------------------------
@@ -24,28 +30,29 @@ POLICY_MODE = os.environ.get("POLICY", "rules")   # rules | rl
 class RulePolicy:
     """
     Eşik değerlerine ve tahmin edilen tehdit tipine göre aksiyon seç.
+    Eşikler env var'dan okunur; operator runtime'da ConfigMap güncelleyerek ayarlayabilir.
     """
 
     def decide(self, anomaly_score: float, predicted_type: str) -> ActionResult:
         score = anomaly_score
 
-        if score > 0.9 and predicted_type == "ddos":
+        if score > DDOS_THRESHOLD and predicted_type == "ddos":
             return ActionResult(
                 action=Action.BLOCK,
                 reason=f"DDoS saldırısı yüksek güven ile tespit edildi (skor={score:.2f})",
             )
-        if score > 0.85 and predicted_type == "tunnel":
+        if score > TUNNEL_THRESHOLD and predicted_type == "tunnel":
             return ActionResult(
                 action=Action.REDIRECT,
                 reason=f"DNS tünelleme tespit edildi (skor={score:.2f})",
                 target=HONEYPOT_IP,
             )
-        if score > 0.8 and predicted_type == "flux":
+        if score > FLUX_THRESHOLD and predicted_type == "flux":
             return ActionResult(
                 action=Action.BLOCK,
                 reason=f"Domain flux tespit edildi (skor={score:.2f})",
             )
-        if score > 0.6:
+        if score > MIRROR_THRESHOLD:
             return ActionResult(
                 action=Action.MIRROR,
                 reason=f"Şüpheli trafik izleniyor (skor={score:.2f})",

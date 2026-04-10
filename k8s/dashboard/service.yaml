@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: cloudnetguard
+spec:
+  selector:
+    app: dashboard
+  type: NodePort
+  ports:
+    - port: 8050
+      targetPort: 8050
+      nodePort: 30050   # docker-compose'daki 8050 portuna karşılık gelir

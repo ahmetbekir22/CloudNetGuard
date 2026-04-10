@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-engine
+  namespace: cloudnetguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-engine
+  template:
+    metadata:
+      labels:
+        app: ai-engine
+    spec:
+      containers:
+        - name: ai-engine
+          image: localhost/cng-ai-engine:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: ai-engine-config
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import redis; redis.Redis(host='redis').ping()"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5

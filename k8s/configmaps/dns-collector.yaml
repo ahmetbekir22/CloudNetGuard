@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dns-collector-config
+  namespace: cloudnetguard
+data:
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  MODE: "synthetic"
+  RATE: "100"
+  ANOMALY_RATIO: "0.15"

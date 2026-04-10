@@ -9,6 +9,6 @@ COPY --from=builder /install /usr/local
 COPY shared /app/shared
 COPY ai-engine/engine.py ai-engine/trainer.py ai-engine/explainer.py ./
 COPY ai-engine/models/ ./models/
-RUN mkdir -p /app/pretrained
+COPY ai-engine/pretrained/ ./pretrained/
 ENV PYTHONUNBUFFERED=1
 CMD ["python", "engine.py"]

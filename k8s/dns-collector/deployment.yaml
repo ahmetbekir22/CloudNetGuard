@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dns-collector
+  namespace: cloudnetguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dns-collector
+  template:
+    metadata:
+      labels:
+        app: dns-collector
+    spec:
+      containers:
+        - name: dns-collector
+          image: localhost/cng-dns-collector:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: dns-collector-config
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              command: ["python", "-c", "import redis; redis.Redis(host='redis').ping()"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5

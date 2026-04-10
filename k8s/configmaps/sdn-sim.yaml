@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sdn-sim-config
+  namespace: cloudnetguard
+data:
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+  POLICY: "rules"
+  PORT: "5001"
+  # RulePolicy thresholds — operator bu değerleri güncelleyebilir
+  DDOS_THRESHOLD: "0.9"
+  TUNNEL_THRESHOLD: "0.85"
+  FLUX_THRESHOLD: "0.8"
+  MIRROR_THRESHOLD: "0.6"

@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sdn-sim
+  namespace: cloudnetguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sdn-sim
+  template:
+    metadata:
+      labels:
+        app: sdn-sim
+    spec:
+      containers:
+        - name: sdn-sim
+          image: localhost/cng-sdn-sim:latest
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: sdn-sim-config
+          ports:
+            - containerPort: 5001
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
